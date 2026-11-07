@@ -136,7 +136,7 @@ jobs:
 
   publish:
     name: Publish ${{ matrix.loader }} ${{ matrix.mc }}
-    needs: build
+    needs: [build, release]
     # Runs only after MODRINTH_ID / CURSEFORGE_ID (repository variables) and
     # MODRINTH_TOKEN / CURSEFORGE_TOKEN (repository secrets) are set.
     if: (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)) && (vars.MODRINTH_ID != '' || vars.CURSEFORGE_ID != '')
