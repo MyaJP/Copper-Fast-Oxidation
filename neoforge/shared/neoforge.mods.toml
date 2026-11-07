@@ -1,0 +1,26 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "MIT"
+
+[[mods]]
+modId = "copper_fast_oxidation"
+version = "${version}"
+displayName = "Copper Fast Oxidation"
+authors = "Mya"
+description = '''
+アメジストの欠片を持って銅ブロックを右クリックすると、錆が1段階進みます。
+'''
+
+[[dependencies.copper_fast_oxidation]]
+modId = "neoforge"
+type = "required"
+versionRange = "[${neo_min},)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.copper_fast_oxidation]]
+modId = "minecraft"
+type = "required"
+versionRange = "[${mc}]"
+ordering = "NONE"
+side = "BOTH"

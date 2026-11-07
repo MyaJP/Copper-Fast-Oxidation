@@ -1,0 +1,28 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+version = rootProject.file('../../VERSION').text.trim()
+group = 'com.miyabi'
+base { archivesName = 'copper_fast_oxidation-neoforge-26.1' }
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+tasks.withType(JavaCompile).configureEach { it.options.encoding = 'UTF-8' }
+
+sourceSets.main.java.srcDirs = ['../shared/v26/java']
+sourceSets.main.resources.srcDirs = []
+
+neoForge {
+    enable {
+        version = '26.1.0.19-beta'
+        disableRecompilation = true
+    }
+}
+
+processResources {
+    def p = [version: project.version, mc: '26.1', neo_min: '26.1.0']
+    inputs.properties p
+    from('../shared') { include 'LICENSE' }
+    from('../shared') { include 'neoforge.mods.toml'; into 'META-INF'; expand p }
+}

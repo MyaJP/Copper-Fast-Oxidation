@@ -1,0 +1,41 @@
+plugins {
+    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
+}
+
+version = rootProject.file('../../VERSION').text.trim()
+group = 'com.miyabi'
+base { archivesName = 'copper_fast_oxidation-forge-1.20.1' }
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            mods { copper_fast_oxidation { source sourceSets.main } }
+        }
+        client {}
+        server { args '--nogui' }
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    def p = [version: project.version]
+    inputs.properties p
+    from('../../LICENSE')
+    filesMatching('META-INF/mods.toml') { expand p }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes(['Implementation-Title': 'Copper Fast Oxidation', 'Implementation-Version': project.version, 'Implementation-Vendor': 'Mya'])
+    }
+    finalizedBy 'reobfJar'
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }

@@ -1,0 +1,27 @@
+plugins {
+    id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+}
+
+version = rootProject.file('../../VERSION').text.trim()
+group = 'com.miyabi'
+base { archivesName = 'copper_fast_oxidation-fabric-1.21.6' }
+
+sourceSets.main.java.srcDirs = ['../shared/v1212/java']
+sourceSets.main.resources.srcDirs = []
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+tasks.withType(JavaCompile).configureEach { it.options.release = 21; it.options.encoding = 'UTF-8' }
+
+processResources {
+    def p = [version: project.version, mc: '1.21.6', java: '21', loader_min: '0.16.0']
+    inputs.properties p
+    from('../shared') { include 'fabric.mod.json', 'LICENSE' }
+    filesMatching('fabric.mod.json') { expand p }
+}

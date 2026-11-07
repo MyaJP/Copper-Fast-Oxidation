@@ -1,0 +1,194 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.loader }} ${{ matrix.mc }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { loader: fabric, mc: '1.20.1', gradle_java: 25 }
+          - { loader: forge, mc: '1.20.1', gradle_java: 21 }
+          - { loader: fabric, mc: '1.21.1', gradle_java: 25 }
+          - { loader: neoforge, mc: '1.21.1', gradle_java: 25 }
+          - { loader: fabric, mc: '1.21.2', gradle_java: 25 }
+          - { loader: neoforge, mc: '1.21.2', gradle_java: 25 }
+          - { loader: fabric, mc: '1.21.3', gradle_java: 25 }
+          - { loader: neoforge, mc: '1.21.3', gradle_java: 25 }
+          - { loader: fabric, mc: '1.21.4', gradle_java: 25 }
+          - { loader: neoforge, mc: '1.21.4', gradle_java: 25 }
+          - { loader: fabric, mc: '1.21.5', gradle_java: 25 }
+          - { loader: neoforge, mc: '1.21.5', gradle_java: 25 }
+          - { loader: fabric, mc: '1.21.6', gradle_java: 25 }
+          - { loader: neoforge, mc: '1.21.6', gradle_java: 25 }
+          - { loader: fabric, mc: '1.21.7', gradle_java: 25 }
+          - { loader: neoforge, mc: '1.21.7', gradle_java: 25 }
+          - { loader: fabric, mc: '1.21.8', gradle_java: 25 }
+          - { loader: neoforge, mc: '1.21.8', gradle_java: 25 }
+          - { loader: fabric, mc: '1.21.9', gradle_java: 25 }
+          - { loader: neoforge, mc: '1.21.9', gradle_java: 25 }
+          - { loader: fabric, mc: '1.21.10', gradle_java: 25 }
+          - { loader: neoforge, mc: '1.21.10', gradle_java: 25 }
+          - { loader: fabric, mc: '1.21.11', gradle_java: 25 }
+          - { loader: neoforge, mc: '1.21.11', gradle_java: 25 }
+          - { loader: fabric, mc: '26.1', gradle_java: 25 }
+          - { loader: neoforge, mc: '26.1', gradle_java: 25 }
+          - { loader: fabric, mc: '26.1.1', gradle_java: 25 }
+          - { loader: neoforge, mc: '26.1.1', gradle_java: 25 }
+          - { loader: fabric, mc: '26.1.2', gradle_java: 25 }
+          - { loader: neoforge, mc: '26.1.2', gradle_java: 25 }
+          - { loader: fabric, mc: '26.2', gradle_java: 25 }
+          - { loader: neoforge, mc: '26.2', gradle_java: 25 }
+          - { loader: fabric, mc: '26.3', gradle_java: 25 }
+          - { loader: neoforge, mc: '26.3', gradle_java: 25 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+            25
+
+      # Each project compiles for its own Java via toolchains; this only picks the JVM that runs Gradle
+      # (Fabric Loom 1.19 / NeoForge on 26.x want 25, ForgeGradle 6 on Gradle 8.8 runs on 21).
+      - name: Pick the Java that runs Gradle
+        run: echo "JAVA_HOME=$JAVA_HOME_${{ matrix.gradle_java }}_X64" >> "$GITHUB_ENV"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        working-directory: ${{ matrix.loader }}
+        run: |
+          chmod +x gradlew
+          ./gradlew -p '${{ matrix.mc }}' build --stacktrace
+
+      - name: Collect jar
+        run: |
+          mkdir -p out
+          find '${{ matrix.loader }}/${{ matrix.mc }}/build/libs' -name '*.jar' \
+            ! -name '*-sources.jar' ! -name '*-dev*.jar' ! -name '*-slim.jar' \
+            -exec cp {} out/ \;
+          ls -l out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.loader }}-${{ matrix.mc }}
+          path: out/*.jar
+          if-no-files-found: error
+
+  dist:
+    name: Push jars to the dist branch
+    needs: build
+    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: jars
+          merge-multiple: true
+      - name: Commit the latest jars to the dist branch
+        run: |
+          cd jars
+          sha256sum *.jar > SHA256SUMS
+          git init -q -b dist
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Jars built from ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" dist
+
+  release:
+    name: Attach jars to the release
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: jars
+          merge-multiple: true
+      - name: Upload to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" jars/*.jar --repo "${{ github.repository }}" --clobber
+
+  publish:
+    name: Publish ${{ matrix.loader }} ${{ matrix.mc }}
+    needs: build
+    # Runs only after MODRINTH_ID / CURSEFORGE_ID (repository variables) and
+    # MODRINTH_TOKEN / CURSEFORGE_TOKEN (repository secrets) are set.
+    if: github.event_name == 'release' && (vars.MODRINTH_ID != '' || vars.CURSEFORGE_ID != '')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - { loader: fabric, mc: '1.20.1', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: forge, mc: '1.20.1' }
+          - { loader: fabric, mc: '1.21.1', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '1.21.1' }
+          - { loader: fabric, mc: '1.21.2', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '1.21.2' }
+          - { loader: fabric, mc: '1.21.3', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '1.21.3' }
+          - { loader: fabric, mc: '1.21.4', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '1.21.4' }
+          - { loader: fabric, mc: '1.21.5', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '1.21.5' }
+          - { loader: fabric, mc: '1.21.6', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '1.21.6' }
+          - { loader: fabric, mc: '1.21.7', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '1.21.7' }
+          - { loader: fabric, mc: '1.21.8', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '1.21.8' }
+          - { loader: fabric, mc: '1.21.9', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '1.21.9' }
+          - { loader: fabric, mc: '1.21.10', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '1.21.10' }
+          - { loader: fabric, mc: '1.21.11', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '1.21.11' }
+          - { loader: fabric, mc: '26.1', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '26.1' }
+          - { loader: fabric, mc: '26.1.1', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '26.1.1' }
+          - { loader: fabric, mc: '26.1.2', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '26.1.2' }
+          - { loader: fabric, mc: '26.2', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '26.2' }
+          - { loader: fabric, mc: '26.3', deps: 'fabric-api(required){modrinth:P7dR8mSH}{curseforge:306612}' }
+          - { loader: neoforge, mc: '26.3' }
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.loader }}-${{ matrix.mc }}
+          path: jar
+      - uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: ${{ vars.MODRINTH_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          curseforge-id: ${{ vars.CURSEFORGE_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: jar/*.jar
+          name: Copper Fast Oxidation ${{ github.event.release.tag_name }} (${{ matrix.loader }} ${{ matrix.mc }})
+          version: ${{ github.event.release.tag_name }}+${{ matrix.loader }}-${{ matrix.mc }}
+          version-type: release
+          changelog: ${{ github.event.release.body }}
+          loaders: ${{ matrix.loader }}
+          game-versions: ${{ matrix.mc }}
+          dependencies: ${{ matrix.deps }}

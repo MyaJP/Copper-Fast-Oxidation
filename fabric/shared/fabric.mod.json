@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "copper_fast_oxidation",
+  "version": "${version}",
+  "name": "Copper Fast Oxidation",
+  "description": "アメジストの欠片を持って銅ブロックを右クリックすると、錆が1段階進みます。",
+  "authors": ["Mya"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.miyabi.copperfastoxidation.CopperFastOxidation"]
+  },
+  "depends": {
+    "fabricloader": ">=${loader_min}",
+    "minecraft": "${mc}",
+    "java": ">=${java}",
+    "fabric-api": "*"
+  }
+}
